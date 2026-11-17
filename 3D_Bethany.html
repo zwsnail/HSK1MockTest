@@ -126,6 +126,7 @@ const tail=G(taffie,-.28,.65,-.43);add(tail,new THREE.TorusGeometry(.19,.11,10,2
 // Taffie alternates between the chair seat and the floor in front of it.
 const dogHop={period:7.2,clock:0};
 let dogFollowingChair=false,chairBeingDragged=false;
+let dogWaypoints=[],dogRouteClock=0;
 let heldPet=null;
 const bowl=tag(G(sc,2.1,.1,1),'水碗','shuǐwǎn','water bowl');add(bowl,CY(.4,.3,.22),M(0x8EC5F2),0,.11,0);add(bowl,CY(.32,.32,.02),M(0xDDF1FF),0,.21,0);
 
@@ -406,6 +407,28 @@ const wardrobeColors=[['红色','hóng sè',0xe85c69],['蓝色','lán sè',0x538
 const wardrobePanel=document.getElementById('wardrobePanel');
 const colorContainer=document.getElementById('wardrobeColors');
 let chosenOutfitColor=wardrobeColors[0];
+let nurseOutfitSelected=false;
+let hoodieOutfitSelected=false;
+let lastNurseLine=-1;
+const nurseLines=[
+ ["我长大了想当护士！","wǒ zhǎng dà le xiǎng dāng hù shi!","I want to be a nurse when I grow up!"],
+ ["我想帮助生病的人。","wǒ xiǎng bāng zhù shēng bìng de rén.","I want to help people who are sick."],
+ ["护士会照顾病人。","hù shi huì zhào gù bìng rén.","Nurses take care of patients."],
+ ["我喜欢帮助别人。","wǒ xǐ huan bāng zhù bié rén.","I like helping others."],
+ ["我要好好学习，长大当护士。","wǒ yào hǎo hǎo xué xí, zhǎng dà dāng hù shi.","I will study hard and become a nurse."],
+ ["我穿上护士服了！","wǒ chuān shàng hù shi fú le!","I put on my nurse uniform!"],
+ ["别害怕，我来帮助你。","bié hài pà, wǒ lái bāng zhù nǐ.","Don't be afraid. I'm here to help."],
+ ["希望大家都健健康康！","xī wàng dà jiā dōu jiàn jiàn kāng kāng!","I hope everyone stays healthy!"]
+];
+function nextNurseLine(){let i=Math.floor(Math.random()*nurseLines.length);if(i===lastNurseLine)i=(i+1)%nurseLines.length;lastNurseLine=i;return nurseLines[i]}
+const hoodieLines=[
+ ["我喜欢穿连帽衫！","wǒ xǐ huan chuān lián mào shān!","I love wearing hoodies!"],
+ ["这件衣服又暖和又舒服。","zhè jiàn yī fu yòu nuǎn huo yòu shū fu.","This hoodie is warm and comfortable."],
+ ["今天我想穿得轻松一点。","jīn tiān wǒ xiǎng chuān de qīng sōng yì diǎn.","I want to dress casually today."],
+ ["我最喜欢这件连帽衫！","wǒ zuì xǐ huan zhè jiàn lián mào shān!","This is my favorite hoodie!"],
+ ["天气冷了，我要穿暖和一点。","tiān qì lěng le, wǒ yào chuān nuǎn huo yì diǎn.","It's cold; I want to dress warmly."]
+];
+let lastHoodieLine=-1;function nextHoodieLine(){let i=Math.floor(Math.random()*hoodieLines.length);if(i===lastHoodieLine)i=(i+1)%hoodieLines.length;lastHoodieLine=i;return hoodieLines[i]}
 let outfitFinishing=false;
 const outfitComments=[
  c=>['我好喜欢这件衣服！','wǒ hǎo xǐ huan zhè jiàn yī fu!','I really like these clothes!'],
@@ -421,7 +444,34 @@ const outfitComments=[
  c=>['这件衣服很舒服。','zhè jiàn yī fu hěn shū fu.','These clothes are comfortable!'],
  c=>['我想穿漂亮的衣服。','wǒ xiǎng chuān piào liang de yī fu.','I want to wear pretty clothes!']
 ];
-for(const [zh,py,hex] of wardrobeColors){const button=document.createElement('button');button.innerHTML=`<span style="display:inline-block;width:13px;height:13px;border-radius:50%;background:#${hex.toString(16).padStart(6,'0')};border:1px solid #ccc;vertical-align:middle"></span> ${zh}<small>${py}</small>`;button.onclick=()=>{chosenOutfitColor=[zh,py,hex];navy.color.setHex(hex);say(B,`我穿${zh}的衣服！`,`wǒ chuān ${py} de yī fu!`,`I'm wearing ${zh}!`)};colorContainer.appendChild(button)}
+for(const [zh,py,hex] of wardrobeColors){const button=document.createElement('button');button.innerHTML=`<span style="display:inline-block;width:13px;height:13px;border-radius:50%;background:#${hex.toString(16).padStart(6,'0')};border:1px solid #ccc;vertical-align:middle"></span> ${zh}<small>${py}</small>`;button.onclick=()=>{chosenOutfitColor=[zh,py,hex];nurseOutfitSelected=false;hoodieOutfitSelected=false;applyNurseOutfit(false);applyHoodieOutfit(false);navy.color.setHex(hex);say(B,`我穿${zh}的衣服！`,`wǒ chuān ${py} de yī fu!`,`I'm wearing ${zh}!`)};colorContainer.appendChild(button)}
+// A separate costume choice, keeping the original nine colors intact.
+const nurseButton=document.createElement('button');
+nurseButton.style.gridColumn='1 / -1';
+nurseButton.style.background='#e8f6ff';
+nurseButton.style.borderColor='#86c9e8';
+nurseButton.innerHTML='👩‍⚕️ 护士服 <small>hù shi fú · Nurse outfit</small>';
+nurseButton.onclick=()=>{
+ nurseOutfitSelected=true;
+ hoodieOutfitSelected=false;
+ applyHoodieOutfit(false);
+ chosenOutfitColor=['护士服','hù shi fú',0xe8f7ff];
+ applyNurseOutfit(true);
+ say(B,...nextNurseLine());
+};
+colorContainer.appendChild(nurseButton);
+const hoodieButton=document.createElement('button');
+hoodieButton.style.gridColumn='1 / -1';
+hoodieButton.style.background='#f0e9ff';
+hoodieButton.style.borderColor='#bca2eb';
+hoodieButton.innerHTML='🧥 连帽衫 Hoodie <small>lián mào shān · Hoodie</small>';
+hoodieButton.onclick=()=>{
+ hoodieOutfitSelected=true;nurseOutfitSelected=false;
+ chosenOutfitColor=['连帽衫','lián mào shān',0xa18bd5];
+ applyNurseOutfit(false);applyHoodieOutfit(true);
+ say(B,...nextHoodieLine());
+};
+colorContainer.appendChild(hoodieButton);
 document.getElementById('wardrobeClose').onclick=async()=>{
  if(outfitFinishing||busy)return;
  outfitFinishing=true;busy=true;
@@ -447,7 +497,8 @@ document.getElementById('wardrobeClose').onclick=async()=>{
    await sleep(2100);
   }
   // Follow the drawer action with one fresh, randomly selected outfit sentence.
-  const line=outfitComments[Math.floor(Math.random()*outfitComments.length)](chosenOutfitColor);
+  const line=nurseOutfitSelected?nextNurseLine():hoodieOutfitSelected?nextHoodieLine():
+    outfitComments[Math.floor(Math.random()*outfitComments.length)](chosenOutfitColor);
   say(B,...line);
  }finally{busy=false;outfitFinishing=false}
 };
@@ -589,13 +640,66 @@ add(head,CY(.015,.015,.1),M(0xDDE6F0),0,.02,.58).rotation.z=Math.PI/2;
 [0,1,2,3,4].forEach(i=>add(head,SP(.06),white,.42+Math.cos(i*1.26)*.08,.34+Math.sin(i*1.26)*.08,.4));add(head,SP(.045),M(0xFFD34D),.42,.34,.43);
 const mouth=G(head,0,-.22,.56),mS=add(mouth,new THREE.TorusGeometry(.09,.017,8,16,Math.PI),M(0xB5444F),0,.03,0);mS.rotation.z=Math.PI;
 const mO=add(mouth,new THREE.CircleGeometry(.11,20,Math.PI,Math.PI),M(0xE0546A),0,.02,0);mO.visible=false;
+// Nurse uniform is attached to Bethany so it follows walking, sitting and gestures.
+const nurseCloth=M(0xe9f7ff),nurseBlue=M(0x8fcbe7),nurseWhite=M(0xffffff),nurseInk=M(0x396e91);
+const nurseAccessories=G(B);nurseAccessories.visible=false;
+// Front coat panel and two pockets (front is +Z).
+add(nurseAccessories,RB(.48,.55,.075,.035),nurseCloth,0,1.10,.315);
+for(const side of [-1,1]){
+ add(nurseAccessories,RB(.19,.16,.055,.025),nurseWhite,side*.175,.93,.368);
+ add(nurseAccessories,RB(.21,.035,.06,.012),nurseBlue,side*.175,1.015,.374);
+}
+// Small blue collar and a name badge.
+for(const side of [-1,1]){
+ const collar=add(nurseAccessories,RB(.18,.14,.035,.02),nurseWhite,side*.135,1.385,.31);
+ collar.rotation.z=side*.35;
+}
+add(nurseAccessories,RB(.22,.115,.035,.016),nurseWhite,.19,1.24,.367);
+add(nurseAccessories,RB(.14,.025,.04,.008),nurseInk,.19,1.24,.393);
+// Nurse cap rests above the head, and rotates with the head during animation.
+const nurseHat=G(head,0,.66,.01);
+add(nurseHat,RB(.68,.19,.40,.055),nurseWhite,0,.05,0);
+add(nurseHat,RB(.49,.07,.42,.02),nurseBlue,0,-.035,.02);
+add(nurseHat,RB(.18,.18,.025,.012),nurseWhite,0,.09,.214);
+add(nurseHat,RB(.038,.125,.03,.006),nurseInk,0,.09,.235);
+add(nurseHat,RB(.12,.038,.03,.006),nurseInk,0,.09,.236);
+nurseHat.visible=false;
+function applyNurseOutfit(enabled){
+ nurseAccessories.visible=enabled;
+ nurseHat.visible=enabled;
+ navy.color.setHex(enabled?0xb8e2f4:chosenOutfitColor[2]);
+}
+// A lavender hoodie: thick front, kangaroo pocket, drawstrings and a soft hood behind the head.
+const hoodieLavender=M(0xa18bd5),hoodieLight=M(0xc9b8f2),hoodieSeam=M(0x8269b4),hoodieString=M(0xf8f1ff);
+const hoodieAccessories=G(B);hoodieAccessories.visible=false;
+add(hoodieAccessories,RB(.57,.59,.13,.065),hoodieLavender,0,1.105,.315);
+add(hoodieAccessories,RB(.38,.19,.045,.035),hoodieLight,0,.94,.395);
+add(hoodieAccessories,RB(.40,.027,.048,.012),hoodieSeam,0,1.025,.42);
+add(hoodieAccessories,RB(.60,.105,.15,.025),hoodieSeam,0,.805,.315);
+const hoodieCuffs=[];
+for(const side of [-1,1]){
+ const cuff=G(arms[side===-1?0:1],0,-.43,0);hoodieCuffs.push(cuff);cuff.visible=false;
+ add(cuff,CY(.105,.105,.13),hoodieSeam,0,0,0);
+ add(hoodieAccessories,CY(.015,.015,.27),hoodieString,side*.105,1.30,.416);
+ add(hoodieAccessories,SP(.027),hoodieString,side*.105,1.165,.416);
+}
+const hoodieHood=G(head,0,-.12,-.36);
+add(hoodieHood,SP(.62),hoodieLavender,0,.08,-.08).scale.set(1.03,1.05,.60);
+add(hoodieHood,SP(.50),hoodieLight,0,.12,.035).scale.set(.97,1.04,.28);
+hoodieHood.visible=false;
+function applyHoodieOutfit(enabled){
+ hoodieAccessories.visible=enabled;
+ hoodieHood.visible=enabled;
+ hoodieCuffs.forEach(c=>c.visible=enabled);
+ navy.color.setHex(enabled?0xa18bd5:chosenOutfitColor[2]);
+}
 B.rotation.order='YXZ'; // yaw first, then recline: face points up toward ceiling
 const st={seatKind:null,typing:false,petting:false,sleeping:false,sit:false,seatY:0,walking:false,happy:false,cheer:false,hop:false,face:.8,target:null,res:null};
 
 /* Small independent objects and pets can be dragged across the floor. */
 // Rabbit roaming: random safe waypoints, a lettuce visit every few trips,
 // and a short stationary eating animation. Does not teleport through furniture.
-const rabbitState={goal:null,mode:'wander',pause:0,trips:0,eatUntil:0,phase:0};
+const rabbitState={goal:null,mode:'wander',pause:0,trips:0,eatUntil:0,phase:0,nextVisit:'water'};
 const rabbitSafe=(x,z)=>x>-5.1&&x<5.1&&z>-4.7&&z<5.1&&!hit(x,z)&&
   Math.hypot(x-tc.position.x,z-tc.position.z)>1.25 &&
   (heldPet===miso||Math.hypot(x-B.position.x,z-B.position.z)>1.35) &&
@@ -611,28 +715,37 @@ function rabbitDestination(){
 function updateRabbit(t,delta){
  const q=rabbitState;
  if(draggingRabbit){miso.position.y=.1;return}
- if(q.mode==='eat'){
-  miso.position.y=.1;mh.rotation.x=.22+Math.sin(t*17)*.09;
-  mn.scale.setScalar(1+Math.sin(t*22)*.3);
-  if(t>=q.eatUntil){q.mode='wander';q.goal=null;q.pause=t+.5;mh.rotation.x=0}
+ if(q.mode==='eat'||q.mode==='drink'){
+  miso.position.y=.1;
+  // Eating: small chewing motions; drinking: rhythmic head dips toward the water.
+  mh.rotation.x=(q.mode==='drink'?.38:.22)+Math.sin(t*(q.mode==='drink'?9:17))*.09;
+  mn.scale.setScalar(1+Math.sin(t*(q.mode==='drink'?12:22))*.22);
+  if(t>=q.eatUntil){q.mode='wander';q.goal=null;q.pause=t+.7;mh.rotation.x=0}
   return;
  }
  mh.rotation.x=0;
  if(t<q.pause){miso.position.y=.1;return}
  if(!q.goal){
   if(q.trips>=2){
-   // Find an accessible point just outside the lettuce bowl.
-   const offsets=[[0,.85],[.85,0],[-.85,0],[0,-.85],[.7,.7],[-.7,.7]];
-   const opts=offsets.map(([dx,dz])=>({x:lt.position.x+dx,z:lt.position.z+dz})).filter(p=>rabbitSafe(p.x,p.z));
-   q.goal=opts.sort((a,b)=>Math.hypot(a.x-miso.position.x,a.z-miso.position.z)-Math.hypot(b.x-miso.position.x,b.z-miso.position.z))[0]||rabbitDestination();
-   q.mode='lettuce';q.trips=0;
+   // Alternate between drinking from the water bowl and nibbling lettuce.
+   // The destination must be OUTSIDE the collision footprint of the dish.
+   const dish=q.nextVisit==='water'?bowl:lt;
+   const offsets=[[0,1.18],[1.18,0],[-1.18,0],[0,-1.18],[.84,.84],[-.84,.84],[.84,-.84],[-.84,-.84]];
+   const opts=offsets.map(([dx,dz])=>({x:dish.position.x+dx,z:dish.position.z+dz})).filter(p=>rabbitSafe(p.x,p.z));
+   if(opts.length){
+    q.goal=opts.sort((a,b)=>Math.hypot(a.x-miso.position.x,a.z-miso.position.z)-Math.hypot(b.x-miso.position.x,b.z-miso.position.z))[0];
+    q.mode=q.nextVisit==='water'?'water':'lettuce';q.nextVisit=q.nextVisit==='water'?'lettuce':'water';q.trips=0;
+   }else{q.goal=rabbitDestination();q.mode='wander';q.trips=0}
   }else{q.goal=rabbitDestination();q.mode='wander'}
  }
  const dx=q.goal.x-miso.position.x,dz=q.goal.z-miso.position.z,d=Math.hypot(dx,dz);
  if(d<.14){
   miso.position.y=.1;
-  if(q.mode==='lettuce'&&Math.hypot(miso.position.x-lt.position.x,miso.position.z-lt.position.z)<1.25){
-   q.mode='eat';q.eatUntil=t+2.7;q.goal=null;
+  const dish=q.mode==='water'?bowl:lt;
+  if((q.mode==='lettuce'||q.mode==='water')&&Math.hypot(miso.position.x-dish.position.x,miso.position.z-dish.position.z)<1.5){
+   const dx=dish.position.x-miso.position.x,dz=dish.position.z-miso.position.z;
+   miso.rotation.y=Math.atan2(dx,dz);
+   q.mode=q.mode==='water'?'drink':'eat';q.eatUntil=t+2.4+Math.random()*.9;q.goal=null;
   }else{q.trips++;q.goal=null;q.mode='wander';q.pause=t+.45+Math.random()*.7}
   return;
  }
@@ -653,6 +766,7 @@ function worldXZ(o){const v=new THREE.Vector3();o.getWorldPosition(v);return v}
 function dragCollides(item,x,z){
  syncMovableFurniture();
  const rad=movableRadius.get(item)||.4;
+ if(item===tc && x>-6.0-rad && x<-2.6+rad && z>-5.9-rad && z<-3.9+rad)return true;
  // Furniture/walls: check the object's full footprint, not just its center.
  const samples=[[0,0],[rad,0],[-rad,0],[0,rad],[0,-rad],[rad*.7,rad*.7],[-rad*.7,rad*.7],[rad*.7,-rad*.7],[-rad*.7,-rad*.7]];
  const ignore=item===ch?['chair']:item===tc?['tchair']:[];
@@ -660,7 +774,7 @@ function dragCollides(item,x,z){
  for(const other of movable){if(other===item||other===heldPet)continue;const q=worldXZ(other),limit=rad+(movableRadius.get(other)||.4)+.025;if(Math.hypot(x-q.x,z-q.z)<limit)return true}
  // Do not drag objects through Bethany's feet or the jumping dog's floor footprint.
  if(Math.hypot(x-B.position.x,z-B.position.z)<rad+.34)return true;
- if(item!==miso&&heldPet!==taffie){const dog=worldXZ(taffie);if(Math.hypot(x-dog.x,z-dog.z)<rad+.72)return true}
+ if(item!==miso&&item!==tc&&heldPet!==taffie){const dog=worldXZ(taffie);if(Math.hypot(x-dog.x,z-dog.z)<rad+.72)return true}
  return false;
 }
 
@@ -739,20 +853,68 @@ function tick(ms){requestAnimationFrame(tick);const t=ms/1000;dt=Math.min(.05,t-
   if(dh>=1&&dh<1.85){const u=(dh-1)/.85;progress=smooth(u);hop=Math.sin(Math.PI*u)*.88}
   else if(dh>=1.85&&dh<4.65)progress=1;
   else if(dh>=4.65&&dh<5.5){const u=(dh-4.65)/.85;progress=1-smooth(u);hop=Math.sin(Math.PI*u)*.88}
-  if(dh>=2.55&&dh<3.3)facing=Math.PI*smooth((dh-2.55)/.75);
-  else if(dh>=3.3&&dh<5.5)facing=Math.PI;
-  else if(dh>=5.5&&dh<6.25)facing=Math.PI*(1-smooth((dh-5.5)/.75));
+  // Keep Taffie facing the same direction throughout both jumps.
+  // Previously the 180-degree turn was held through the return jump,
+  // making the puppy appear to hop with its back toward the viewer.
+  facing=0;
   return {progress,hop,facing};
  };
+ // Dog navigation uses its own collision map. The normal character hit-test
+ // includes the dog itself and can trap it at the chair after detachment.
+ const dogSafe=(x,z)=>{
+  if(x < -5.35 || x > 5.35 || z < -4.95 || z > 5.45)return false;
+  syncMovableFurniture();
+  if(OB.some(o=>o[0]!=='tchair' && x>o[1]-.40 && x<o[2]+.40 && z>o[3]-.40 && z<o[4]+.40))return false;
+  if(Math.hypot(x-B.position.x,z-B.position.z)<.95)return false;
+  return [miso,nk,pt,ch,bowl,lt].every(o=>{const q=worldXZ(o);return Math.hypot(x-q.x,z-q.z)>.48+(movableRadius.get(o)||.4)});
+ };
+ // A small 2-D grid finds a route around the aquarium and furniture, rather
+ // than repeatedly sliding sideways into an obstacle with no forward progress.
+ function dogRoute(sx,sz,tx,tz){
+  const step=.28,x0=-5.32,z0=-4.9,W=39,H=38;
+  const index=(i,j)=>j*W+i, coord=k=>({x:x0+(k%W)*step,z:z0+Math.floor(k/W)*step});
+  const ix=x=>Math.max(0,Math.min(W-1,Math.round((x-x0)/step)));
+  const iz=z=>Math.max(0,Math.min(H-1,Math.round((z-z0)/step)));
+  const start=index(ix(sx),iz(sz)),queue=[start],prev=new Map([[start,-1]]);
+  let best=start,dist=Infinity;
+  for(let h=0;h<queue.length;h++){
+   const cur=queue[h],p=coord(cur),d=Math.hypot(p.x-tx,p.z-tz);
+   if(d<dist){dist=d;best=cur}if(d<.28)break;
+   for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,-1],[-1,1]]){
+    const i=cur%W+di,j=Math.floor(cur/W)+dj;
+    if(i<0||i>=W||j<0||j>=H)continue;
+    const k=index(i,j),q=coord(k);
+    if(prev.has(k)||!dogSafe(q.x,q.z))continue;
+    if(di&&dj){const a=coord(index(i-di,j)),b=coord(index(i,j-dj));if(!dogSafe(a.x,a.z)||!dogSafe(b.x,b.z))continue}
+    prev.set(k,cur);queue.push(k);
+   }
+  }
+  if(best===start)return [];
+  const result=[];for(let k=best;k!==start&&k!==-1;k=prev.get(k))result.push(coord(k));
+  return result.reverse();
+ }
  if(dogFollowingChair && heldPet!==taffie){
-  // Once the little chair is moved, Taffie walks toward its new position,
-  // avoiding Bethany, furniture and other draggable objects, then resumes hopping.
-  const chairPos=worldXZ(tc),dx=chairPos.x-taffie.position.x,dz=chairPos.z-taffie.position.z,d=Math.hypot(dx,dz);
-  if(!chairBeingDragged && d<.26){tc.attach(taffie);taffie.position.set(0,1,0);taffie.rotation.y=0;dogFollowingChair=false;dogHop.clock=0}
-  else if(d>.12){const step=Math.min(d,dt*1.5),nx=taffie.position.x+dx/d*step,nz=taffie.position.z+dz/d*step;
-   const blocked=(x,z)=>hit(x,z,['tchair'])||Math.hypot(x-B.position.x,z-B.position.z)<.95||[miso,nk,pt,ch,bowl,lt].some(o=>{const v=worldXZ(o);return Math.hypot(x-v.x,z-v.z)<.5+(movableRadius.get(o)||.4)});
-   if(!blocked(nx,nz)){taffie.position.x=nx;taffie.position.z=nz;taffie.rotation.y=Math.atan2(dx,dz);taffie.position.y=.05+Math.abs(Math.sin(t*10))*.10}
-   else {const offsets=[[-dz/d,dx/d],[dz/d,-dx/d]];for(const [ox,oz] of offsets){const ax=taffie.position.x+ox*dt*.9,az=taffie.position.z+oz*dt*.9;if(!blocked(ax,az)){taffie.position.x=ax;taffie.position.z=az;break}}}
+  // The target is outside the chair footprint, so Taffie never walks through it.
+  const approach=tc.localToWorld(new THREE.Vector3(0,0,1.72));
+  const dx=approach.x-taffie.position.x,dz=approach.z-taffie.position.z,d=Math.hypot(dx,dz);
+  if(!chairBeingDragged && d<.28){
+   tc.attach(taffie);taffie.position.set(0,.06,1.55);taffie.rotation.set(0,0,0);
+   dogFollowingChair=false;dogHop.clock=4.65;dogRouteClock=0;dogWaypoints=[];
+  }else{
+   dogRouteClock-=dt;
+   if(dogRouteClock<=0 || !dogWaypoints.length){
+    dogWaypoints=dogRoute(taffie.position.x,taffie.position.z,approach.x,approach.z);
+    dogRouteClock=.65;
+   }
+   while(dogWaypoints.length&&Math.hypot(dogWaypoints[0].x-taffie.position.x,dogWaypoints[0].z-taffie.position.z)<.19)dogWaypoints.shift();
+   const target=dogWaypoints[0]||((dogSafe(approach.x,approach.z))?approach:null);
+   if(target){
+    const vx=target.x-taffie.position.x,vz=target.z-taffie.position.z,len=Math.hypot(vx,vz);
+    if(len>.001){const stride=Math.min(len,dt*1.6),nx=taffie.position.x+vx/len*stride,nz=taffie.position.z+vz/len*stride;
+     if(dogSafe(nx,nz)){taffie.position.x=nx;taffie.position.z=nz;taffie.rotation.y=Math.atan2(vx,vz);taffie.position.y=.05+Math.abs(Math.sin(t*10))*.10}
+     else dogRouteClock=0;
+    }
+   }
   }
  }
  if(!dogFollowingChair && heldPet!==taffie){
@@ -1253,16 +1415,73 @@ function pick(e){
 const cv=R.domElement;let dr=null,mvd=0;
 cv.addEventListener('pointerdown',e=>{pointerRay(e);const hits=ray.intersectObjects(sc.children,true);let item=null;
  for(const h of hits){item=movableAncestor(h.object);if(item)break;if(h.object.userData.floor||h.object.userData.block)break}
- dr={x:e.clientX,y:yaw,cy:e.clientY,e:el,item,ox:0,oz:0};mvd=0;
+ dr={x:e.clientX,y:yaw,cy:e.clientY,e:el,item,ox:0,oz:0,chairDragStarted:false};mvd=0;
  if(item===miso)draggingRabbit=true;
- if(item===tc && !dogFollowingChair && heldPet!==taffie){sc.attach(taffie);taffie.position.y=.05;dogFollowingChair=true;dogHop.clock=0}
- if(item===tc)chairBeingDragged=true;if(item&&ray.ray.intersectPlane(dragPlane,dragPoint)){dr.ox=item.position.x-dragPoint.x;dr.oz=item.position.z-dragPoint.z}
+ // Do not detach Taffie on pointerdown: a click on the puppy also hits its parent chair.
+ // Only start chair dragging after the pointer has actually moved.
+ if(item&&ray.ray.intersectPlane(dragPlane,dragPoint)){dr.ox=item.position.x-dragPoint.x;dr.oz=item.position.z-dragPoint.z}
  cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing'});
-cv.addEventListener('pointermove',e=>{if(dr){const d=e.clientX-dr.x,dy=e.clientY-dr.cy;mvd=Math.max(mvd,Math.abs(d),Math.abs(dy));
- if(dr.item){if(mvd>5){pointerRay(e);if(ray.ray.intersectPlane(dragPlane,dragPoint)){const x=Math.max(-5.45,Math.min(5.45,dragPoint.x+dr.ox)),z=Math.max(-5.45,Math.min(5.45,dragPoint.z+dr.oz));if((()=>{const sx=dr.item.position.x,sz=dr.item.position.z,n=Math.max(1,Math.ceil(Math.hypot(x-sx,z-sz)/.12));for(let i=1;i<=n;i++)if(dragCollides(dr.item,sx+(x-sx)*i/n,sz+(z-sz)*i/n)){const cx=sx+(x-sx)*i/n,cz=sz+(z-sz)*i/n;if(!dragCollides(dr.item,sx,sz))return false;const dx=x-sx,dz=z-sz;if(Math.hypot(dx,dz)<.02)return false;/* escape pre-existing overlap only when moving away */if(Math.hypot(cx-B.position.x,cz-B.position.z)<Math.hypot(sx-B.position.x,sz-B.position.z)-.02)return false; if(dr.item===ch||dr.item===tc){const dog=worldXZ(taffie);if(Math.hypot(cx-dog.x,cz-dog.z)<Math.hypot(sx-dog.x,sz-dog.z)-.02)return false}}return true})()){dr.item.position.x=x;dr.item.position.z=z;dr.item.position.y=movableHeights.get(dr.item);syncMovableFurniture()}}}}
- else{yaw=Math.min(1.25,Math.max(.3,dr.y-d*.006));el=Math.min(1.05,Math.max(.1,dr.e+dy*.005))}}
- else if(e.pointerType==='mouse'){const o=pick(e);cv.style.cursor=o?'pointer':'grab'}});
-cv.addEventListener('pointerup',e=>{cv.style.cursor='';if(dr&&mvd<6){const clicked=pick(e);const o=clicked===curtainCord?curtainCord:(dr.item||clicked);if(o===cal)askCalendar();else if(o===dresser)visitDresser();else if(dresserDrawers.some(d=>d.drawer===o))openDresserDrawer(dresserDrawers.findIndex(d=>d.drawer===o));else if(o===lightSwitch)pressWallSwitch();else if(o===curtainCord)pullWindowCurtain();else if(o===B)greetBethany();else if(o&&o.floor){if(!busy&&!hit(o.floor.x,o.floor.z)){stand().then(()=>go(o.floor.x,o.floor.z))}}else if(o){say(o,o.userData.zh,o.userData.py,o.userData.en);if(o===taffie)jig[o.uuid]=last}}if(dr&&dr.item===tc)chairBeingDragged=false;if(dr&&dr.item===miso){draggingRabbit=false;rabbitState.goal=null;rabbitState.mode='wander';rabbitState.pause=last+.5}dr=null});
+// Move furniture incrementally: stop at the last safe position rather than
+// rejecting a whole mouse movement when its endpoint crosses an obstacle.
+function moveDraggedObject(item,targetX,targetZ){
+ const startX=item.position.x,startZ=item.position.z;
+ const dx=targetX-startX,dz=targetZ-startZ;
+ const steps=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.08));
+ let x=startX,z=startZ;
+ for(let i=1;i<=steps;i++){
+  const nx=startX+dx*i/steps,nz=startZ+dz*i/steps;
+  if(dragCollides(item,nx,nz))break;
+  x=nx;z=nz;
+ }
+ // If diagonal motion is blocked, allow sliding along the free axis.
+ if(x===startX&&z===startZ){
+  for(const axis of ['x','z']){
+   let ax=startX,az=startZ;
+   for(let i=1;i<=steps;i++){
+    const nx=axis==='x'?startX+dx*i/steps:startX;
+    const nz=axis==='z'?startZ+dz*i/steps:startZ;
+    if(dragCollides(item,nx,nz))break;
+    ax=nx;az=nz;
+   }
+   if(Math.hypot(ax-startX,az-startZ)>Math.hypot(x-startX,z-startZ)){x=ax;z=az}
+  }
+ }
+ item.position.x=x;item.position.z=z;
+ item.position.y=movableHeights.get(item);
+ syncMovableFurniture();
+}
+cv.addEventListener('pointermove',e=>{
+ if(dr){
+  const d=e.clientX-dr.x,dy=e.clientY-dr.cy;
+  mvd=Math.max(mvd,Math.abs(d),Math.abs(dy));
+  if(dr.item){
+   if(mvd>5){
+    if(dr.item===tc&&!dr.chairDragStarted){
+     dr.chairDragStarted=true;chairBeingDragged=true;
+     if(!dogFollowingChair&&heldPet!==taffie){
+      sc.attach(taffie);
+      // Begin on the open floor in front of the chair, not inside its seat.
+      const departure=tc.localToWorld(new THREE.Vector3(0,.05,1.55));
+      taffie.position.copy(departure);
+      dogFollowingChair=true;dogHop.clock=0;dogWaypoints=[];dogRouteClock=0;
+     }
+    }
+    pointerRay(e);
+    if(ray.ray.intersectPlane(dragPlane,dragPoint)){
+     const x=Math.max(-5.45,Math.min(5.45,dragPoint.x+dr.ox));
+     const z=Math.max(-5.45,Math.min(5.45,dragPoint.z+dr.oz));
+     moveDraggedObject(dr.item,x,z);
+    }
+   }
+  }else{
+   yaw=Math.min(1.25,Math.max(.3,dr.y-d*.006));
+   el=Math.min(1.05,Math.max(.1,dr.e+dy*.005));
+  }
+ }else if(e.pointerType==='mouse'){
+  const o=pick(e);cv.style.cursor=o?'pointer':'grab';
+ }
+});
+cv.addEventListener('pointerup',e=>{cv.style.cursor='';if(dr&&mvd<6){const clicked=pick(e);const o=clicked===curtainCord?curtainCord:(clicked===taffie?taffie:(dr.item||clicked));if(o===cal)askCalendar();else if(o===dresser)visitDresser();else if(dresserDrawers.some(d=>d.drawer===o))openDresserDrawer(dresserDrawers.findIndex(d=>d.drawer===o));else if(o===lightSwitch)pressWallSwitch();else if(o===curtainCord)pullWindowCurtain();else if(o===B)greetBethany();else if(o&&o.floor){if(!busy&&!hit(o.floor.x,o.floor.z)){stand().then(()=>go(o.floor.x,o.floor.z))}}else if(o){say(o,o.userData.zh,o.userData.py,o.userData.en);if(o===taffie)jig[o.uuid]=last}}if(dr&&dr.item===tc)chairBeingDragged=false;if(dr&&dr.item===miso){draggingRabbit=false;rabbitState.goal=null;rabbitState.mode='wander';rabbitState.pause=last+.5}dr=null});
 cv.addEventListener('wheel',e=>{e.preventDefault();rad=Math.min(1.25,Math.max(.65,rad+e.deltaY*.001))},{passive:false});
 
 /* ---- music: bouncy 8-bit loop (WebAudio) ---- */
