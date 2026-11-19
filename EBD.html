@@ -1368,9 +1368,14 @@
     let giftCarriedByBethany = false;
 
     const giftBase = G(giftGroup, 0, 0, 0);
-    add(giftBase, RB(.72, .44, .72, .04), M(0xFF7FA3), 0, .22, 0);
-    add(giftBase, RB(.74, .45, .12, .02), gold, 0, .22, 0);
-    add(giftBase, RB(.12, .45, .74, .02), gold, 0, .22, 0);
+    const giftPink = M(0xFF7FA3);
+    add(giftBase, RB(.72, .06, .72, .015), M(0xD8507C), 0, .03, 0);
+    for (const side of [-1, 1]) {
+      add(giftBase, RB(.72, .39, .06, .014), giftPink, 0, .245, side * .33);
+      add(giftBase, RB(.06, .39, .60, .014), giftPink, side * .33, .245, 0);
+      add(giftBase, RB(.12, .44, .014, .005), gold, 0, .22, side * .365);
+      add(giftBase, RB(.014, .44, .12, .005), gold, side * .365, .22, 0);
+    }
 
     const giftLid = G(giftGroup, 0, .46, 0);
     add(giftLid, RB(.78, .14, .78, .04), M(0xFF9DB8), 0, 0, 0);
@@ -2165,11 +2170,17 @@
 
     /* ---- popups & TTS ---- */
     function femV() { const vs = speechSynthesis.getVoices().filter(v => /^(zh-CN|zh-Hans|cmn-CN)/i.test(v.lang)), female = /xiaoxiao|xiaoyi|xiaohan|xiaomo|xiaoxuan|huihui|tingting|meijia|sinji|yaoyao|female|女/i, male = /male(?!.*female)|男|kangkang|yunxi|yunyang|yunjian|jian|gang/i; return vs.find(v => female.test(v.name) && !male.test(v.name)) || vs.find(v => !male.test(v.name)) || vs[0] || null }
-function maleV() {
-      const all = speechSynthesis.getVoices();
-      const zh = all.filter(v => /^(zh|cmn)/i.test(v.lang));
-      const pri = [/yunxi/i, /yunfeng|yunhao|yunze/i, /yunyang/i, /yunjian/i, /li-?mu|liumu|reed|eddy|grandpa/i, /kangkang|yunjhe|zhiwei|wanlung|male(?!.*female)|男/i];
-      for (const re of pri) { const v = zh.find(x => re.test(x.name)); if (v) { v.__male = true; return v } }
+    function maleV(voices = speechSynthesis.getVoices()) {
+      const zh = voices.filter(v => /^(zh|cmn)/i.test(v.lang));
+      const preferred = [
+        /yunxi|云希/i, /yunfeng|yunhao|yunze|云枫|云皓|云泽/i,
+        /yunyang|云扬|yunjian|云健/i, /li[ -]?mu|liumu|reed|eddy|grandpa/i,
+        /kangkang|康康|yunjhe|zhiwei|wanlung|yunwei|(?:^|[^a-z])male\b|男/i
+      ];
+      for (const pattern of preferred) {
+        const voice = zh.find(v => pattern.test(v.name + ' ' + v.voiceURI));
+        if (voice) return voice;
+      }
       return null;
     }
     try { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices() } catch (e) { }
@@ -2194,7 +2205,7 @@ function maleV() {
       u.lang = 'zh-CN';
       const v = isMale ? maleV() : femV();
       if (v) u.voice = v;
-      if (isMale) { u.rate = .9; u.pitch = v && v.__male ? .85 : .55 } else { u.rate = .88; u.pitch = 1.15 }
+      if (isMale) { u.rate = .9; u.pitch = v ? 1 : .55 } else { u.rate = .88; u.pitch = 1.15 }
       return [u];
     }
     /* 语音引擎防卡死：保留引用、取消后稍等再说、超时没开口就换本地声音重试 */
@@ -2224,7 +2235,15 @@ function maleV() {
           setTimeout(() => {
             if (gen !== ttsGen || ended) return;
             const u2 = new SpeechSynthesisUtterance(u.text); u2.lang = 'zh-CN'; u2.rate = u.rate; u2.pitch = u.pitch;
-            const lv = speechSynthesis.getVoices().find(v => /^(zh|cmn)/i.test(v.lang) && v.localService); if (lv) u2.voice = lv;
+            const localVoices = speechSynthesis.getVoices().filter(v => v.localService);
+            if (isMale) {
+              const voice = maleV(localVoices) || maleV();
+              if (voice) u2.voice = voice;
+              u2.pitch = voice ? 1 : .55;
+            } else {
+              const voice = localVoices.find(v => /^(zh|cmn)/i.test(v.lang));
+              if (voice) u2.voice = voice;
+            }
             speakIt(u2);
           }, 150);
         }, 1800);
@@ -2241,7 +2260,7 @@ function maleV() {
       try {
         let endCb = null;
         if (o === taffie || o === miso || o === nk) endCb = () => { if (o === taffie) animalCall('dog'); else if (o === nk) animalCall('cat'); else animalCall('rabbit') };
-        speakChain(zh, isMale, endCb, null);
+        speakChain(zh, isMale || o === window.ETH_OBJ, endCb, null);
       } catch (e) { }
     }
 
@@ -2264,7 +2283,7 @@ function maleV() {
         pop.style.left = Math.min(innerWidth - 90, Math.max(90, x)) + 'px'; pop.style.top = Math.max(120, y) + 'px'; pop.classList.add('on');
         clearTimeout(say.t); say.t = setTimeout(() => pop.classList.remove('on'), estMs + 600);
         try {
-          speakChain(zh, isMale, () => setTimeout(done, 250), done);
+          speakChain(zh, isMale || o === window.ETH_OBJ, () => setTimeout(done, 250), done);
         } catch (e) { done() }
       });
     }
@@ -2597,19 +2616,44 @@ function maleV() {
         });
       }
 
+      const giftLidWorld = new THREE.Vector3();
+
+      function clearsGiftPiece(goal, piece, clearance) {
+        const dx = goal.x - ETH.position.x, dz = goal.z - ETH.position.z;
+        const sx = ETH.position.x - piece.x, sz = ETH.position.z - piece.z;
+        const projection = sx * dx + sz * dz;
+        const nearest = Math.max(0, Math.min(1, -projection / (dx * dx + dz * dz)));
+        return Math.hypot(sx + nearest * dx, sz + nearest * dz) >= clearance;
+      }
+
+      function chooseEthanRunGoal() {
+        giftLid.getWorldPosition(giftLidWorld);
+        for (let attempt = 0; attempt < 32; attempt++) {
+          const goal = { x: -.3 + Math.random() * 3.7, z: 2.5 + Math.random() * 2.2 };
+          if (Math.hypot(goal.x - ETH.position.x, goal.z - ETH.position.z) < .4) continue;
+          if (!giftGroup.visible || (
+            clearsGiftPiece(goal, giftGroup.position, .86) &&
+            clearsGiftPiece(goal, giftLidWorld, .90)
+          )) return goal;
+        }
+        return null;
+      }
+
       window.openGiftBoxAnimation = async function () {
         if (ethanHoldingPiano) return;
         giftCarriedByBethany = false;
 
-        const startY = giftGroup.position.y;
+        const start = giftGroup.position.clone();
+        const away = new THREE.Vector2(start.x - ETH.position.x, start.z - ETH.position.z).setLength(.45);
         const t0 = performance.now();
         await new Promise(resolve => {
           function step(now) {
             const u = Math.min(1, (now - t0) / 650), e = u * u * (3 - 2 * u);
-            giftGroup.position.y = startY * (1 - e);
-            giftLid.position.y = .46 + e * .42;
-            giftLid.position.z = -e * .34;
-            giftLid.rotation.x = -e * 1.12;
+            giftGroup.position.set(start.x + e * away.x, start.y * (1 - e), start.z + e * away.y);
+            const lift = Math.sin(e * Math.PI);
+            giftLid.position.y = .46 * (1 - e) + .08 * e + .45 * lift;
+            giftLid.position.z = -.86 * e;
+            giftLid.rotation.x = -.75 * lift;
             if (u < 1) requestAnimationFrame(step); else resolve();
           }
           requestAnimationFrame(step);
@@ -2638,6 +2682,13 @@ function maleV() {
 
         $('#btnEndStory').style.display = 'inline-block';
       };
+
+      function ethanConversationAngle() {
+        const view = Math.atan2(cam.position.x - ETH.position.x, cam.position.z - ETH.position.z);
+        const bethany = Math.atan2(B.position.x - ETH.position.x, B.position.z - ETH.position.z);
+        const offset = Math.atan2(Math.sin(bethany - view), Math.cos(bethany - view));
+        return view + Math.max(-Math.PI / 4, Math.min(Math.PI / 4, offset));
+      }
 
       function turnEthanTo(a, ms = 550) {
         return new Promise(resolve => {
@@ -2709,7 +2760,7 @@ function maleV() {
           syncEthanOb(true);
 
           st.face = Math.PI / 2 - .55;
-          await turnEthanTo(-Math.PI / 2 + Math.PI / 4, 600);
+          await turnEthanTo(ethanConversationAngle(), 600);
           await sleep(300);
 
           // 5. 对话：今天是几号？ -> 不知道 -> 你都不知道啊
@@ -2776,7 +2827,7 @@ function maleV() {
           ethanReceivingGift = false;
           await go(-.85, 3.75);
           st.face = Math.PI / 2 - .55;
-          await turnEthanTo(-Math.PI / 2 + Math.PI / 4, 500);
+          await turnEthanTo(ethanConversationAngle(), 500);
 
           // 7. Ethan 说“我知道今天几号，谢谢。”
           ethanPermanentSmile = true;
@@ -2821,14 +2872,18 @@ function maleV() {
               eLegs.forEach((l, i) => l.rotation.x = w * (i ? 1 : -1));
             }
           } else if (ethanDancing && ethanHoldingPiano && pianoMusicPlaying) {
-            // 边弹边满屋跑
+            // 检查整段跑动路线，给地上的盒身和盒盖都留出空间。
             if (!window.__runGoal || Math.hypot(window.__runGoal.x - ETH.position.x, window.__runGoal.z - ETH.position.z) < .2)
-              window.__runGoal = { x: -.3 + Math.random() * 3.7, z: 2.5 + Math.random() * 2.2 };
-            const rg = window.__runGoal, rdx = rg.x - ETH.position.x, rdz = rg.z - ETH.position.z, rd = Math.hypot(rdx, rdz) || 1;
-            const rstep = Math.min(rd, dt * 2.7);
-            ETH.position.x += rdx / rd * rstep; ETH.position.z += rdz / rd * rstep;
-            let rda = Math.atan2(rdx, rdz) - ETH.rotation.y; rda = Math.atan2(Math.sin(rda), Math.cos(rda));
-            ETH.rotation.y += rda * Math.min(1, dt * 7);
+              window.__runGoal = chooseEthanRunGoal();
+            const goal = window.__runGoal;
+            if (goal) {
+              const rdx = goal.x - ETH.position.x, rdz = goal.z - ETH.position.z;
+              const rd = Math.hypot(rdx, rdz);
+              const rstep = Math.min(rd, dt * 2.7);
+              ETH.position.x += rdx / rd * rstep; ETH.position.z += rdz / rd * rstep;
+              const turn = Math.atan2(rdx, rdz) - ETH.rotation.y;
+              ETH.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt * 7);
+            }
             ETH.position.y = Math.abs(Math.sin(t * 12)) * .15;
             ETH.rotation.z = Math.sin(t * 6) * .08;
             eLegs.forEach((l, i) => { l.rotation.x = Math.sin(t * 12 + i * Math.PI) * .75 });
@@ -2850,7 +2905,9 @@ function maleV() {
           if (!focusT && !ethanDancing) {
             let ra = Math.atan2(B.position.x - ETH.position.x, B.position.z - ETH.position.z) - ETH.rotation.y;
             ra = Math.atan2(Math.sin(ra), Math.cos(ra));
-            eHead.rotation.y += (Math.max(-.7, Math.min(.7, ra)) * .7 - eHead.rotation.y) * .06;
+            const headLimit = busy && !ethanReceivingGift ? .18 : .49;
+            const headTurn = Math.max(-headLimit, Math.min(headLimit, ra * .7));
+            eHead.rotation.y += (headTurn - eHead.rotation.y) * .06;
           } else {
             eHead.rotation.y += (Math.sin(t * (ethanDancing ? 3.75 : 1.2)) * (ethanDancing ? .22 : 0) - eHead.rotation.y) * .1;
           }
