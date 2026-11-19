@@ -2171,18 +2171,14 @@
     /* ---- popups & TTS ---- */
     function femV() { const vs = speechSynthesis.getVoices().filter(v => /^(zh-CN|zh-Hans|cmn-CN)/i.test(v.lang)), female = /xiaoxiao|xiaoyi|xiaohan|xiaomo|xiaoxuan|huihui|tingting|meijia|sinji|yaoyao|female|女/i, male = /male(?!.*female)|男|kangkang|yunxi|yunyang|yunjian|jian|gang/i; return vs.find(v => female.test(v.name) && !male.test(v.name)) || vs.find(v => !male.test(v.name)) || vs[0] || null }
     function maleV(voices = speechSynthesis.getVoices()) {
-      const female = /\bfemale\b|女|\b(?:xiaoxiao|xiaoyi|xiaohan|xiaomo|xiaoxuan|huihui|yaoyao|ting[ -]?ting|mei[ -]?jia|sin[ -]?ji|sandy|flo|shelley)\b/i;
-      const zh = voices.filter(v =>
-        /^(?:zh|cmn)(?:[-_]|$)/i.test(v.lang) && !female.test(v.name + ' ' + v.voiceURI)
-      );
-      const preferred = [
-        /\byunxi\b|云希/i, /\b(?:yunfeng|yunhao|yunze)\b|云枫|云皓|云泽/i,
-        /\b(?:yunyang|yunjian)\b|云扬|云健/i,
-        /\b(?:li[ -]?mu|liu[ -]?mu|reed|eddy|grandpa)\b/i,
-        /\b(?:kang[ -]?kang|yunjhe|zhiwei|wan[ -]?lung|yunwei|male)\b|康康|男/i
+      const candidates = [
+        [/^(?:zh|cmn)(?:-Hans)?-CN$/i, /^(?:Microsoft\s+)?(?:Yunxi|云希)(?:\s+Online\s*\(Natural\))?(?:\s*-\s*Chinese\s*\(Mainland\))?$/i],
+        [/^(?:zh|cmn)(?:-Hans)?-CN$/i, /^(?:Microsoft\s+)?(?:Kangkang|康康)(?:\s+Desktop)?(?:\s*-\s*Chinese\s*\((?:Simplified|China|Mainland)\))?$/i],
+        [/^(?:zh|cmn)(?:-Hant)?-TW$/i, /^(?:Microsoft\s+)?Zhiwei(?:\s+Desktop)?(?:\s*-\s*Chinese\s*\(Taiwan\))?$/i],
+        [/^(?:zh|cmn)(?:-Hant)?-TW$/i, /^(?:Reed|Eddy)(?:\s*\((?:Chinese\s*\(Taiwan\)|Chinese,\s*Taiwan|台灣|臺灣|台湾)\))?$/i]
       ];
-      for (const pattern of preferred) {
-        const voice = zh.find(v => pattern.test(v.name + ' ' + v.voiceURI));
+      for (const [language, name] of candidates) {
+        const voice = voices.find(v => language.test(v.lang.replace(/_/g, '-')) && name.test(v.name.trim()));
         if (voice) return voice;
       }
       return null;
@@ -2209,7 +2205,7 @@
       u.lang = 'zh-CN';
       const v = isMale ? maleV() : femV();
       if (isMale && !v) return null;
-      if (v) u.voice = v;
+      if (v) { u.voice = v; if (isMale) u.lang = v.lang }
       if (isMale) { u.rate = .9; u.pitch = 1 } else { u.rate = .88; u.pitch = 1.15 }
       return u;
     }
@@ -2246,6 +2242,7 @@
               const voice = maleV(localVoices) || maleV();
               if (!voice) return fin(onerr || onend);
               u2.voice = voice;
+              u2.lang = voice.lang;
             } else {
               const voice = localVoices.find(v => /^(zh|cmn)/i.test(v.lang));
               if (voice) u2.voice = voice;
