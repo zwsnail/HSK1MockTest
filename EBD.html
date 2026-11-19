@@ -2199,57 +2199,67 @@
         .replace(/弹/g, '谈');
     }
 
-    function enV(male) { const vs = speechSynthesis.getVoices().filter(v => /^en[-_](US|GB)/i.test(v.lang)); const m = /male(?!.*female)|david|mark|guy|daniel|alex|george|james/i, f = /female|zira|samantha|aria|jenny|susan|karen|hazel/i; return (male ? vs.find(v => m.test(v.name)) : vs.find(v => f.test(v.name))) || vs.find(v => /en-US/i.test(v.lang)) || vs[0] || null }
-    function buildUtterances(zh, isMale) {
-      const u = new SpeechSynthesisUtterance(formatSpeechText(zh));
-      u.lang = 'zh-CN';
-      const v = isMale ? maleV() : femV();
-      if (isMale && !v) return null;
-      if (v) { u.voice = v; if (isMale) u.lang = v.lang }
-      if (isMale) { u.rate = .9; u.pitch = 1 } else { u.rate = .88; u.pitch = 1.15 }
+    function buildUtterances(zh, isMale, en, previousVoice) {
+      const voices = speechSynthesis.getVoices();
+      const available = previousVoice
+        ? voices.filter(v => v.name !== previousVoice.name || v.lang !== previousVoice.lang)
+        : voices;
+      const mandarin = isMale ? maleV(available) : null;
+      const english = isMale && en && !mandarin ? available.find(v =>
+        /^en(?:[-_]|$)/i.test(v.lang) && /^(?:Alex|Fred|Daniel|Tom|Microsoft (?:David|Mark|George|Guy|Ryan)(?: Desktop| Online\s*\(Natural\))?(?:\s*-\s*English\s*\([^)]+\))?)$/i.test(v.name.trim())
+      ) : null;
+      const voice = isMale ? mandarin || english : femV();
+      if (isMale && !voice) return null;
+      const u = new SpeechSynthesisUtterance(english ? en : formatSpeechText(zh));
+      u.lang = voice && isMale ? voice.lang : 'zh-CN';
+      if (voice) u.voice = voice;
+      u.rate = isMale ? .9 : .88;
+      u.pitch = isMale ? 1 : 1.15;
       return u;
     }
     /* 语音引擎防卡死：保留引用、取消后稍等再说、超时没开口就换本地声音重试 */
     let ttsGen = 0; const ttsKeep = new Set();
-    function speakChain(zh, isMale, onend, onerr) {
+    function speakChain(zh, isMale, onend, onerr, en) {
       const gen = ++ttsGen;
       try { speechSynthesis.cancel() } catch (e) { }
       setTimeout(() => {
         if (gen !== ttsGen || !('speechSynthesis' in window)) return;
         let ended = false, started = false, cur = null;
         const fin = cb => { if (ended) return; ended = true; if (cur) ttsKeep.delete(cur); if (cb) cb() };
-        const speakIt = u => {
+        const speakIt = (u, onFailure = () => fin(onerr || onend)) => {
           cur = u; ttsKeep.add(u);
           u.onstart = () => { started = true };
           u.onend = () => fin(onend);
-          u.onerror = () => fin(onerr || onend);
+          u.onerror = onFailure;
           try { speechSynthesis.resume() } catch (e) { }
-          try { speechSynthesis.speak(u) } catch (e) { fin(onerr || onend) }
+          try { speechSynthesis.speak(u) } catch (e) { onFailure() }
         };
-        const u = buildUtterances(zh, isMale);
-        if (!u) return; // 没有识别到中文男声时保留字幕。
-        speakIt(u);
-        setTimeout(() => {
-          if (gen !== ttsGen || ended || started) return;
+        const u = buildUtterances(zh, isMale, en);
+        if (!u) return;
+        let retried = false;
+        const retry = () => {
+          if (gen !== ttsGen || ended || retried) return;
+          retried = true;
+          if (started) return fin(onerr || onend);
           // 引擎没有开口：重置并改用本地中文声音重试一次
           u.onend = u.onerror = null; ttsKeep.delete(u);
           try { speechSynthesis.cancel() } catch (e) { }
           setTimeout(() => {
             if (gen !== ttsGen || ended) return;
-            const u2 = new SpeechSynthesisUtterance(u.text); u2.lang = 'zh-CN'; u2.rate = u.rate; u2.pitch = u.pitch;
-            const localVoices = speechSynthesis.getVoices().filter(v => v.localService);
             if (isMale) {
-              const voice = maleV(localVoices) || maleV();
-              if (!voice) return fin(onerr || onend);
-              u2.voice = voice;
-              u2.lang = voice.lang;
-            } else {
-              const voice = localVoices.find(v => /^(zh|cmn)/i.test(v.lang));
-              if (voice) u2.voice = voice;
+              const replacement = buildUtterances(zh, true, en, u.voice);
+              if (replacement) speakIt(replacement);
+              else fin(onerr || onend);
+              return;
             }
+            const u2 = new SpeechSynthesisUtterance(u.text); u2.lang = 'zh-CN'; u2.rate = u.rate; u2.pitch = u.pitch;
+            const voice = speechSynthesis.getVoices().find(v => v.localService && /^(zh|cmn)/i.test(v.lang));
+            if (voice) u2.voice = voice;
             speakIt(u2);
           }, 150);
-        }, 1800);
+        };
+        speakIt(u, isMale ? retry : undefined);
+        setTimeout(() => { if (!started) retry() }, 1800);
       }, 90);
     }
 
@@ -2263,13 +2273,13 @@
       try {
         let endCb = null;
         if (o === taffie || o === miso || o === nk) endCb = () => { if (o === taffie) animalCall('dog'); else if (o === nk) animalCall('cat'); else animalCall('rabbit') };
-        speakChain(zh, isMale || o === window.ETH_OBJ, endCb, null);
+        speakChain(zh, isMale || o === window.ETH_OBJ, endCb, null, en);
       } catch (e) { }
     }
 
     function sayAndWait(o, zh, py, en, isMale = false) {
       return new Promise(resolve => {
-        const estMs = Math.max(2000, zh.length * 260 + 900);
+        const estMs = Math.max(2000, zh.length * 260 + 900, isMale && en ? en.split(/\s+/).length * 450 + 2800 : 0);
         let finished = false;
         if (o === B) { st.speaking = true; clearTimeout(say.bTalk) }
         if (o === window.ETH_OBJ && window.setEthanSpeaking) { window.setEthanSpeaking(true); clearTimeout(say.eTalk) }
@@ -2286,7 +2296,7 @@
         pop.style.left = Math.min(innerWidth - 90, Math.max(90, x)) + 'px'; pop.style.top = Math.max(120, y) + 'px'; pop.classList.add('on');
         clearTimeout(say.t); say.t = setTimeout(() => pop.classList.remove('on'), estMs + 600);
         try {
-          speakChain(zh, isMale || o === window.ETH_OBJ, () => setTimeout(done, 250), done);
+          speakChain(zh, isMale || o === window.ETH_OBJ, () => setTimeout(done, 250), done, en);
         } catch (e) { done() }
       });
     }
